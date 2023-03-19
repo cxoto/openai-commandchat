@@ -48,7 +48,7 @@ class CommandChat:
             except Exception:
                 content = event['choices'][0]["delta"]["content"]
             completion_text += content
-            print(content.replace("\n", ""), end="")
+            print(content, end="")
         self.record_chat_logs(
             message, {"role": role, "content": completion_text.replace("\n\n", "")})
 
