@@ -6,7 +6,11 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name='commandchat',
     version='0.0.1',
-    scripts=['cc'],
+    entry_points={
+        'console_scripts': [
+            'occ = command.__main__:main'
+        ]
+    },
     author="xoto",
     author_email="xxx.tao.c@gmail.com",
     description="use command to chat with openai models",

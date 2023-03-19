@@ -11,12 +11,14 @@ config = configparser.SafeConfigParser()
 
 def get_config_path():
     homedir = os.environ.get('HOME', None)
-    logger.debug("Home Directory: " + homedir)
+    if os.name == 'nt':
+        homedir = os.path.expanduser('~')
+
     if not homedir:
         logger.log_r("Home Directory Not found!! Set Envirnoment `HOME` ")
         exit()
     logger.debug("Home Directory : " + homedir)
-    config_file_temp = os.path.join(homedir + "/.cc/config")
+    config_file_temp = os.path.join(homedir + "/.occ/config")
     logger.debug("Config File Location : " + config_file_temp)
     if not os.path.exists(config_file_temp):
         logger.log_r("ERROR: No Config file present")
@@ -66,7 +68,8 @@ def get_env(profile, key):
         return config.get('default', key)
 
     logger.debug("No Value Found in DEAFULT SECTION as well")
-    logger.log_r('Value not found in [Default Profile] use `cc configure`comamnd')
+    logger.log_r(
+        'Value not found in [Default Profile] use `occ configure`comamnd')
     exit()
 
 

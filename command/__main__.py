@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import absolute_import
 
 import click
@@ -8,7 +7,7 @@ import utils.logger as logger
 from configuration.profile_config import add_profile, add_default_profile
 from openai.CommandChat import CommandChat
 
-VERSION = pkg_resources.require("recordset")[0].version
+VERSION = pkg_resources.require("commandchat")[0].version
 
 
 def debug_logging(verbose):
@@ -24,7 +23,7 @@ def commandchat_operator():
 
 
 @click.command()
-@click.option('--profile', help='Enable profile name')
+@click.option('-profile', help='Enable profile name')
 @click.option('-d', count=True, help='Enable debugger logging')
 def configure(profile, d):
     debug_logging(d)
@@ -35,24 +34,18 @@ def configure(profile, d):
 
 
 @click.command()
-@click.option('--profile', help=' profile name')
-@click.option('-d', count=True, help='Enable debugger logging')
-def rlist(profile, d):
-    debug_logging(d)
-    CommandChat(profile).run("list")
-
-
-@click.command()
 @click.option('-c', help=' enter something you want to say ')
+@click.option('-id', help=' enter id')
+@click.option('-profile', help='Enable profile name')
 @click.option('-d', count=True, help='Enable debugger logging')
-def c(c, d):
+def c(c, id, profile, d):
     debug_logging(d)
-    CommandChat(profile).run(c)
+    CommandChat(profile=profile, chat_log_id=id).run(c)
 
 
 commandchat_operator.add_command(configure)
 commandchat_operator.add_command(c)
 
 
-if __name__ == '__main__':  # pragma: no cover
+def main():  # pragma: no cover
     commandchat_operator()
