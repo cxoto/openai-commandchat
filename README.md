@@ -18,7 +18,7 @@ python3.x -m pip3 install commandchat
 
 ## Features
 - You can set the api_key for openai with a simple command, and you can distinguish the key for your multiple accounts with a profile (default `default` if you don't specify it): `occ configure -profile`
-- You can use the command `occ chat -msg` to chat with the chat-GPT model `gpt-3.5-turbo`.
+- You can use the command `occ chat` to chat with the chat-GPT model `gpt-3.5-turbo`.
 ### To be implemented
 - You can use the `occ image -desc` command with chat-GPT's model to describe the image you want to generate, giving you back a link to the image.
 - You can use the `occ xxx -yyy` command to chat with a specified model of chat-GPT to complete a task you specify or give you advice.
@@ -29,7 +29,7 @@ python3.x -m pip3 install commandchat
 
 A terminal with Python and pip installed:
 
-- Installed python environment and python version >= 3.8
+- Installed python environment and python version >= 3.9
 - Install the openai package
 
 ## Installing

@@ -34,18 +34,18 @@ def configure(profile, d):
 
 
 @click.command()
-@click.option('-c', help=' enter something you want to say ')
+@click.argument('message')
 @click.option('-id', help=' enter id')
 @click.option('-profile', help='Enable profile name')
 @click.option('-d', count=True, help='Enable debugger logging')
-def c(c, id, profile, d):
+def chat(message, id, profile, d):
     debug_logging(d)
-    CommandChat(profile=profile, chat_log_id=id).run(c)
+    CommandChat(profile=profile, chat_log_id=id).run(message)
 
 
 commandchat_operator.add_command(configure)
-commandchat_operator.add_command(c)
+commandchat_operator.add_command(chat)
 
 
-def main():  # pragma: no cover
+def main():  
     commandchat_operator()

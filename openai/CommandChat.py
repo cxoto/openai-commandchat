@@ -4,21 +4,26 @@ from commons.config import get_env
 import openai
 import os
 
+def get_home_path():
+    homedir = os.environ.get('HOME', None)
+    if os.name == 'nt':
+        homedir = os.path.expanduser('~')
+    return homedir
 
 class CommandChat:
 
+    DEFAULT_PROFILE = "default"
+    DEFAULT_CHAT_LOG_ID = "chat-1"
+
     def __init__(self, profile=None, chat_log_id=None):
-        profile = profile if profile != None else "default"
-        self.api_key = get_env(profile, "api_key")
-        self.chat_log_id = chat_log_id if chat_log_id != None else "chat-1"
-        self.file_name = self.chat_log_id + '.log'
-        self.messages = []
+        self.api_key = get_env(profile or self.DEFAULT_PROFILE, "api_key")
+        self.chat_log_id = chat_log_id or self.DEFAULT_CHAT_LOG_ID
+        self.folder_path = os.path.join(get_home_path(), ".occ", profile or self.DEFAULT_PROFILE)
+        self.file_name = os.path.join(self.folder_path, f"{self.chat_log_id}.log")
+        os.makedirs(self.folder_path, exist_ok=True)
         if not os.path.exists(self.file_name):
-            with open(self.file_name, 'w') as f:
-                pass
-        with open(self.file_name, 'r') as f:
-            lines = filter(lambda x: x.strip(), f)
-            self.messages = [json.loads(line) for line in map(str.strip, lines)]
+            open(self.file_name, 'w').close()
+        self.messages = [json.loads(line) for line in (line.strip() for line in open(self.file_name)) if line.strip()]
     
     def run(self, message):
         openai.api_key = self.api_key
@@ -35,42 +40,35 @@ class CommandChat:
             stream=True
         )
 
-        collected_events = []
         completion_text = ''
         content = ''
-        role = ''
+        role = None
         for event in response:
-            collected_events.append(event)
             if event['choices'][0]["finish_reason"] == "stop":
                 break
-            try:
-                role = event['choices'][0]["delta"]["role"]
-            except Exception:
+            if role is None:
+                try:
+                    role = event['choices'][0]["delta"]["role"]
+                except Exception:
+                    content = event['choices'][0]["delta"]["content"]
+            else:
                 content = event['choices'][0]["delta"]["content"]
             completion_text += content
             print(content, end="")
-        self.record_chat_logs(
-            message, {"role": role, "content": completion_text.replace("\n\n", "")})
-
-    def read_last_lines(self, lines):
-        with open(self.chat_log_id, 'r') as f:
-            last_lines = f.readlines()[-lines:]
-        return ''.join(last_lines)
+        self.record_chat_logs(message, {"role": role, "content": completion_text.replace("\n\n", "")})
 
     def record_chat_logs(self, content, completion_text):
-        file_name = self.file_name
-
-        with open(file_name, 'r+') as f:
+        with open(self.file_name, 'r+') as f:
             lines = f.readlines()
-            if len(lines) >= 6:
-                with open(self.chat_log_id+'_history.log', 'a+') as hf:
-                    hf.write(lines[0])
-                lines = lines[1:]
-            lines.append('\n{}\n{}'.format(json.dumps(content, ensure_ascii=False),  json.dumps(completion_text, ensure_ascii=False)))
+            if len(lines) >= 8:
+                with open(os.path.join(self.folder_path, self.chat_log_id + '_history.log'), 'a+') as hf:
+                    hf.writelines(lines[:4])
+                lines = lines[4:]
+            lines.append('\n{}\n{}'.format(json.dumps(content, ensure_ascii=False), json.dumps(completion_text, ensure_ascii=False)))
             f.seek(0)
             f.truncate()
             f.writelines(lines)
 
 
 if __name__ == '__main__':
-    CommandChat(profile=None, chat_log_id=None).run("我的上一个问题是啥")
+    CommandChat(profile=None, chat_log_id=None).run("给个解决demo吗，python的")
