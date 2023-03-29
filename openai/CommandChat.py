@@ -4,6 +4,9 @@ from commons.config import get_env
 import openai
 import os
 
+from utils.CommonUtil import save_and_copy_image
+
+
 def get_home_path():
     homedir = os.environ.get('HOME', None)
     if os.name == 'nt':
@@ -19,20 +22,50 @@ class CommandChat:
         self.api_key = get_env(profile or self.DEFAULT_PROFILE, "api_key")
         self.chat_log_id = chat_log_id or self.DEFAULT_CHAT_LOG_ID
         self.folder_path = os.path.join(get_home_path(), ".occ", profile or self.DEFAULT_PROFILE)
+        self.image_folder_path = os.path.join(self.folder_path, "images")
         self.file_name = os.path.join(self.folder_path, f"{self.chat_log_id}.log")
         os.makedirs(self.folder_path, exist_ok=True)
+        os.makedirs(self.image_folder_path, exist_ok=True)
         if not os.path.exists(self.file_name):
             open(self.file_name, 'w').close()
         self.messages = [json.loads(line) for line in (line.strip() for line in open(self.file_name)) if line.strip()]
     
-    def run(self, message):
+    def image_create(self, description, num):
+        openai.api_key = self.api_key
+        try:
+            response = openai.Image.create(
+                prompt=description,
+                n=num,
+                size="256x256"
+            )
+            for index in range(num):
+                image_url = response['data'][index]['url']
+                save_and_copy_image(image_url, self.image_folder_path)
+        except openai.error.OpenAIError as e:
+            print(e.http_status)
+            print(e.error)
+
+    def image_create_variation(self, img_file, size):
+        openai.api_key = self.api_key
+        try:
+            response = openai.Image.create_variation(
+                open(img_file, "rb"),
+                n=1,
+                size=size
+            )
+            save_and_copy_image(response['data'][0]['url'], self.image_folder_path)
+        except openai.error.OpenAIError as e:
+            print(e.http_status)
+            print(e.error)
+
+    def chat(self, message):
         openai.api_key = self.api_key
         message = {"role": "user", "content": message}
         self.messages.append(message)
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=self.messages,
-            temperature=0.1,
+            temperature=0.2,
             max_tokens=2048,
             top_p=1,
             frequency_penalty=0.0,
@@ -71,4 +104,5 @@ class CommandChat:
 
 
 if __name__ == '__main__':
-    CommandChat(profile=None, chat_log_id=None).run("给个解决demo吗，python的")
+    CommandChat(profile=None).image_create("中国风，古代，战争，秋天，山",2)
+

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setuptools.setup(
     name='commandchat',
-    version='0.0.1',
+    version='0.0.3',
     entry_points={
         'console_scripts': [
             'occ = command.__main__:main'
@@ -20,6 +20,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         'click',
+        'Image',
         'openai'
     ],
     classifiers=[

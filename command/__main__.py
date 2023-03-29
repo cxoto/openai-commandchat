@@ -10,12 +10,6 @@ from openai.CommandChat import CommandChat
 VERSION = pkg_resources.require("commandchat")[0].version
 
 
-def debug_logging(verbose):
-    if verbose == 1:
-        click.echo(click.style("Debugging Level is set", fg='green'))
-        logger.enable_debug()
-
-
 @click.group()
 @click.version_option(version=VERSION, prog_name='openai-commandchat')
 def commandchat_operator():
@@ -24,9 +18,7 @@ def commandchat_operator():
 
 @click.command()
 @click.option('-profile', help='Enable profile name')
-@click.option('-d', count=True, help='Enable debugger logging')
-def configure(profile, d):
-    debug_logging(d)
+def configure(profile):
     if profile is not None:
         add_profile(profile)
     else:
@@ -35,17 +27,28 @@ def configure(profile, d):
 
 @click.command()
 @click.argument('message')
-@click.option('-id', help=' enter id')
+@click.option('-id', help=' enter chat id, something like context')
 @click.option('-profile', help='Enable profile name')
-@click.option('-d', count=True, help='Enable debugger logging')
-def chat(message, id, profile, d):
-    debug_logging(d)
-    CommandChat(profile=profile, chat_log_id=id).run(message)
+def chat(message, id, profile):
+    CommandChat(profile=profile, chat_log_id=id).chat(message)
+
+@click.command()
+@click.option('-desc', help=' Enter the description of the images you want')
+@click.option('-num', count=True, help=' Enter the number to generate the specified number of images')
+@click.option('-profile', help='Enable profile name')
+def image(desc, num, profile):
+    if num == 0:
+        num = 1
+    CommandChat(profile=profile).image_create(desc, num)
 
 
 commandchat_operator.add_command(configure)
 commandchat_operator.add_command(chat)
+commandchat_operator.add_command(image)
 
 
-def main():  
+def main():
     commandchat_operator()
+
+if __name__ == '__main__':
+    main()
