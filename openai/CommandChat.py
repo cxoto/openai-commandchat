@@ -4,7 +4,7 @@ from commons.config import get_env
 import openai
 import os
 
-from utils.CommonUtil import save_and_copy_image
+from utils.CommonUtil import save_and_copy_image, waiting_start, waiting_stop
 
 
 def get_home_path():
@@ -20,6 +20,7 @@ class CommandChat:
 
     def __init__(self, profile=None, chat_log_id=None):
         self.api_key = get_env(profile or self.DEFAULT_PROFILE, "api_key")
+        self.limit_history = int(get_env(profile or self.DEFAULT_PROFILE, "limit_history") or 4)
         self.chat_log_id = chat_log_id or self.DEFAULT_CHAT_LOG_ID
         self.folder_path = os.path.join(get_home_path(), ".occ", profile or self.DEFAULT_PROFILE)
         self.image_folder_path = os.path.join(self.folder_path, "images")
@@ -30,13 +31,13 @@ class CommandChat:
             open(self.file_name, 'w').close()
         self.messages = [json.loads(line) for line in (line.strip() for line in open(self.file_name)) if line.strip()]
     
-    def image_create(self, description, num):
+    def image_create(self, description, size, num):
         openai.api_key = self.api_key
         try:
             response = openai.Image.create(
                 prompt=description,
                 n=num,
-                size="256x256"
+                size=size
             )
             for index in range(num):
                 image_url = response['data'][index]['url']
@@ -62,6 +63,7 @@ class CommandChat:
         openai.api_key = self.api_key
         message = {"role": "user", "content": message}
         self.messages.append(message)
+        waiting_start()
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=self.messages,
@@ -72,7 +74,7 @@ class CommandChat:
             presence_penalty=0.6,
             stream=True
         )
-
+        waiting_stop()   
         completion_text = ''
         content = ''
         role = None
@@ -93,10 +95,10 @@ class CommandChat:
     def record_chat_logs(self, content, completion_text):
         with open(self.file_name, 'r+') as f:
             lines = f.readlines()
-            if len(lines) >= 8:
+            if len(lines) >= self.limit_history:
                 with open(os.path.join(self.folder_path, self.chat_log_id + '_history.log'), 'a+') as hf:
-                    hf.writelines(lines[:4])
-                lines = lines[4:]
+                    hf.writelines(lines[:2])
+                lines = lines[2:]
             lines.append('\n{}\n{}'.format(json.dumps(content, ensure_ascii=False), json.dumps(completion_text, ensure_ascii=False)))
             f.seek(0)
             f.truncate()
@@ -104,5 +106,5 @@ class CommandChat:
 
 
 if __name__ == '__main__':
-    CommandChat(profile=None).image_create("中国风，古代，战争，秋天，山",2)
+    CommandChat(profile=None).chat("python输出一个金字塔")
 

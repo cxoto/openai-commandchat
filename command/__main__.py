@@ -32,14 +32,25 @@ def configure(profile):
 def chat(message, id, profile):
     CommandChat(profile=profile, chat_log_id=id).chat(message)
 
+size_map = {
+    "s": "256x256",
+    "S": "256x256",
+    "m": "512x512",
+    "M": "512x512",
+    "l": "1024x1024",
+    "L": "1024x1024"
+}
+
 @click.command()
 @click.option('-desc', help=' Enter the description of the images you want')
+@click.option('-size', help=' Enter the size(S/s,M/m,L/l): \n   small - 256x256 \n   middle  - 512x512 \n   large - 1024x1024')
 @click.option('-num', count=True, help=' Enter the number to generate the specified number of images')
 @click.option('-profile', help='Enable profile name')
-def image(desc, num, profile):
-    if num == 0:
-        num = 1
-    CommandChat(profile=profile).image_create(desc, num)
+def image(desc, size, num, profile):
+    number = num if num > 0 else 1
+    size = size_map.get(size)
+    size_value = size if size != None else "512x512" 
+    CommandChat(profile=profile).image_create(desc, size_value, number if number < 5 else 4)
 
 
 commandchat_operator.add_command(configure)
@@ -49,6 +60,3 @@ commandchat_operator.add_command(image)
 
 def main():
     commandchat_operator()
-
-if __name__ == '__main__':
-    main()
