@@ -25,9 +25,10 @@ class WaitingThread(threading.Thread):
 
 def save_and_copy_image(url, image_path):
     response = requests.get(url)
-    image_file = os.path.join(image_path +  os.path.basename(urlparse(url).path))
+    image_file = os.path.join(image_path, os.path.basename(urlparse(url).path))
     with open(image_file, 'wb') as f:
         f.write(response.content)
+    print("image download path: "+image_file)
     show_image(image_file)
 
 

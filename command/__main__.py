@@ -5,7 +5,9 @@ import pkg_resources
 
 import utils.logger as logger
 from configuration.profile_config import add_profile, add_default_profile
-from openai.CommandChat import CommandChat
+from occ.CommandChat import CommandChat
+from utils.CommonUtil import waiting_stop
+
 
 VERSION = pkg_resources.require("commandchat")[0].version
 
@@ -30,7 +32,11 @@ def configure(profile):
 @click.option('-id', help=' enter chat id, something like context')
 @click.option('-profile', help='Enable profile name')
 def chat(message, id, profile):
-    CommandChat(profile=profile, chat_log_id=id).chat(message)
+    try:
+        CommandChat(profile=profile, chat_log_id=id).chat(message)
+    except Exception as e:
+        logger.log_g(str(e))
+        waiting_stop()
 
 size_map = {
     "s": "256x256",
