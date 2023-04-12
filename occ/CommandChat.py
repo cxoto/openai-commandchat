@@ -90,6 +90,7 @@ class CommandChat:
                 content = event['choices'][0]["delta"]["content"]
             completion_text += content
             print(content, end="")
+        print("\n")
         self.record_chat_logs(message, {"role": role, "content": completion_text.replace("\n\n", "")})
 
     def record_chat_logs(self, content, completion_text):
@@ -97,8 +98,8 @@ class CommandChat:
             lines = f.readlines()
             if len(lines) >= self.limit_history:
                 with open(os.path.join(self.folder_path, self.chat_log_id + '_history.log'), 'a+') as hf:
-                    hf.writelines(lines[:2])
-                lines = lines[2:]
+                    hf.writelines(lines[:(self.limit_history)])
+                lines = lines[(self.limit_history):]
             lines.append('\n{}\n{}'.format(json.dumps(content, ensure_ascii=False), json.dumps(completion_text, ensure_ascii=False)))
             f.seek(0)
             f.truncate()
