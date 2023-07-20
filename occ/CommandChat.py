@@ -1,8 +1,8 @@
 import json
-from occ.commons import get_env
 import openai
 import os
 
+from occ.commons.config import get_env
 from occ.utils.CommonUtil import save_and_copy_image, waiting_start, waiting_stop
 
 
