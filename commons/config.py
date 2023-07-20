@@ -8,11 +8,13 @@ import utils.logger as logger
 
 config = configparser.SafeConfigParser()
 
+
 def get_home_path():
     homedir = os.environ.get('HOME', None)
     if os.name == 'nt':
         homedir = os.path.expanduser('~')
     return homedir
+
 
 def get_config_path():
     homedir = get_home_path()

@@ -8,7 +8,6 @@ from configuration.profile_config import add_profile, add_default_profile
 from occ.CommandChat import CommandChat
 from utils.CommonUtil import waiting_stop
 
-
 VERSION = pkg_resources.require("commandchat")[0].version
 
 
@@ -38,6 +37,7 @@ def chat(message, id, profile):
         logger.log_g(str(e))
         waiting_stop()
 
+
 size_map = {
     "s": "256x256",
     "S": "256x256",
@@ -47,15 +47,17 @@ size_map = {
     "L": "1024x1024"
 }
 
+
 @click.command()
 @click.option('-desc', help=' Enter the description of the images you want')
-@click.option('-size', help=' Enter the size(S/s,M/m,L/l): \n   small - 256x256 \n   middle  - 512x512 \n   large - 1024x1024')
+@click.option('-size',
+              help=' Enter the size(S/s,M/m,L/l): \n   small - 256x256 \n   middle  - 512x512 \n   large - 1024x1024')
 @click.option('-num', count=True, help=' Enter the number to generate the specified number of images')
 @click.option('-profile', help='Enable profile name')
 def image(desc, size, num, profile):
     number = num if num > 0 else 1
     size = size_map.get(size)
-    size_value = size if size != None else "512x512" 
+    size_value = size if size is not None else "512x512"
     CommandChat(profile=profile).image_create(desc, size_value, number if number < 5 else 4)
 
 
