@@ -1,15 +1,15 @@
 import click
 
-import commons.config as config
-import utils.logger as logger
+import occ.commons.config as config
+import occ.utils.logger as logger
 
 
 def add_default_profile():
     api_key = click.prompt(logger.style('\n[default] Your default api_key '),
-                             default=config.get_default_env("api_key"), type=str)
+                           default=config.get_default_env("api_key"), type=str)
     config.set_env('default', 'api_key', api_key)
     limit_history = click.prompt(logger.style('\n[default] Your default limit_history '),
-                             default=config.get_default_env("limit_history"), type=str)
+                                 default=config.get_default_env("limit_history"), type=str)
     config.set_env('default', 'limit_history', limit_history)
 
 

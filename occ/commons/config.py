@@ -4,7 +4,7 @@ import os
 
 import pkg_resources
 
-import utils.logger as logger
+import occ.utils.logger as logger
 
 config = configparser.SafeConfigParser()
 

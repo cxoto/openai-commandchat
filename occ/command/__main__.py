@@ -3,10 +3,10 @@ from __future__ import absolute_import
 import click
 import pkg_resources
 
-import utils.logger as logger
-from configuration.profile_config import add_profile, add_default_profile
+import occ.utils.logger as logger
+from occ.configuration.profile_config import add_profile, add_default_profile
 from occ.CommandChat import CommandChat
-from utils.CommonUtil import waiting_stop
+from occ.utils.CommonUtil import waiting_stop
 
 VERSION = pkg_resources.require("commandchat")[0].version
 

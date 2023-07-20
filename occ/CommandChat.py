@@ -1,9 +1,9 @@
 import json
-from commons.config import get_env
+from occ.commons import get_env
 import openai
 import os
 
-from utils.CommonUtil import save_and_copy_image, waiting_start, waiting_stop
+from occ.utils.CommonUtil import save_and_copy_image, waiting_start, waiting_stop
 
 
 def get_home_path():
