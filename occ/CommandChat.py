@@ -19,6 +19,7 @@ class CommandChat:
 
     def __init__(self, profile=None, chat_log_id=None):
         self.api_key = get_env(profile or self.DEFAULT_PROFILE, "api_key")
+        self.api_base = get_env(profile or self.DEFAULT_PROFILE, "api_base_url")
         self.limit_history = int(get_env(profile or self.DEFAULT_PROFILE, "limit_history") or 4)
         self.chat_log_id = chat_log_id or self.DEFAULT_CHAT_LOG_ID
         self.folder_path = os.path.join(get_home_path(), ".occ", profile or self.DEFAULT_PROFILE)
@@ -32,6 +33,7 @@ class CommandChat:
 
     def image_create(self, description, size, num):
         openai.api_key = self.api_key
+        openai.api_base = self.api_base
         try:
             response = openai.Image.create(
                 prompt=description,
@@ -47,6 +49,7 @@ class CommandChat:
 
     def image_create_variation(self, img_file, size):
         openai.api_key = self.api_key
+        openai.api_base = self.api_base
         try:
             response = openai.Image.create_variation(
                 open(img_file, "rb"),
@@ -60,6 +63,7 @@ class CommandChat:
 
     def chat(self, message):
         openai.api_key = self.api_key
+        openai.api_base = self.api_base
         message = {"role": "user", "content": message}
         self.messages.append(message)
         waiting_start()

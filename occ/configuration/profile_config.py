@@ -8,6 +8,11 @@ def add_default_profile():
     api_key = click.prompt(logger.style('\n[default] Your default api_key '),
                            default=config.get_default_env("api_key"), type=str)
     config.set_env('default', 'api_key', api_key)
+
+    api_key = click.prompt(logger.style('\n[default] Your api_base_url(Optional) '),
+                           default=config.get_default_env("api_base_url"), type=str)
+    config.set_env('default', 'api_base_url', api_key)
+
     limit_history = click.prompt(logger.style('\n[default] Your default limit_history '),
                                  default=config.get_default_env("limit_history"), type=str)
     config.set_env('default', 'limit_history', limit_history)
@@ -27,4 +32,5 @@ def add_profile(profile_name):
     config.add_profile(profile_name)
     config.set_env(profile_name, 'profile_name', profile_name)
     input_config_vars(profile_name, 'api_key', False)
+    input_config_vars(profile_name, 'api_base_url', False)
     input_config_vars(profile_name, 'limit_history', False)
