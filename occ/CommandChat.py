@@ -71,10 +71,9 @@ class CommandChat:
             model="gpt-3.5-turbo",
             messages=self.messages,
             temperature=0.2,
-            max_tokens=2048,
             top_p=1,
             frequency_penalty=0.0,
-            presence_penalty=0.6,
+            presence_penalty=0.5,
             stream=True
         )
         waiting_stop()
@@ -100,11 +99,17 @@ class CommandChat:
         with open(self.file_name, 'r+') as f:
             lines = f.readlines()
             if len(lines) >= self.limit_history:
+                limit_history_ = (len(lines) + 2 - self.limit_history)
                 with open(os.path.join(self.folder_path, self.chat_log_id + '_history.log'), 'a+') as hf:
-                    hf.writelines(lines[:(self.limit_history)])
-                lines = lines[(self.limit_history):]
-            lines.append('\n{}\n{}'.format(json.dumps(content, ensure_ascii=False),
-                                           json.dumps(completion_text, ensure_ascii=False)))
+                    hf.writelines("\n")
+                    hf.writelines(lines[:limit_history_])
+                lines = lines[limit_history_:]
+            if len(lines) == 0:
+                lines.append('{}\n{}'.format(json.dumps(content, ensure_ascii=False),
+                                             json.dumps(completion_text, ensure_ascii=False)))
+            else:
+                lines.append('\n{}\n{}'.format(json.dumps(content, ensure_ascii=False),
+                                               json.dumps(completion_text, ensure_ascii=False)))
             f.seek(0)
             f.truncate()
             f.writelines(lines)
