@@ -5,6 +5,9 @@ import os
 from occ.commons.config import get_env
 from occ.utils.CommonUtil import save_and_copy_image, waiting_start, waiting_stop
 
+DEFAULT_CHAT_LOG_ID = "chat-1"
+DEFAULT_PROFILE = "default"
+
 
 def get_home_path():
     homedir = os.environ.get('HOME', None)
@@ -14,8 +17,6 @@ def get_home_path():
 
 
 class CommandChat:
-    DEFAULT_PROFILE = "default"
-    DEFAULT_CHAT_LOG_ID = "chat-1"
 
     def __init__(self, profile=None, chat_log_id=None):
         self.api_key = get_env(profile or self.DEFAULT_PROFILE, "api_key")
