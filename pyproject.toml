@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "commandchat"
+version = "0.0.4"
+description = "use command to chat with openai models"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "xoto", email = "xxx.tao.c@gmail.com" }
+]
+dependencies = [
+    "click",
+    "Image",
+    "openai"
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/xoto/commandchat"
+
+[project.scripts]
+occ = "occ.command.__main__:main"
