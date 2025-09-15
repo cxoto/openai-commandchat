@@ -1,5 +1,6 @@
 import json
 import openai
+from openai import OpenAI
 import os
 
 from occ.commons.config import get_env
@@ -19,11 +20,13 @@ def get_home_path():
 class CommandChat:
 
     def __init__(self, profile=None, chat_log_id=None):
-        self.api_key = get_env(profile or self.DEFAULT_PROFILE, "api_key")
-        self.api_base = get_env(profile or self.DEFAULT_PROFILE, "api_base_url")
-        self.limit_history = int(get_env(profile or self.DEFAULT_PROFILE, "limit_history") or 4)
-        self.chat_log_id = chat_log_id or self.DEFAULT_CHAT_LOG_ID
-        self.folder_path = os.path.join(get_home_path(), ".occ", profile or self.DEFAULT_PROFILE)
+        self.api_key = get_env(profile or DEFAULT_PROFILE, "api_key")
+        self.api_base = get_env(profile or DEFAULT_PROFILE, "api_base_url")
+        os.environ.setdefault("OPENAI_API_KEY", self.api_key)
+        os.environ.setdefault("OPENAI_BASE_URL", self.api_base)
+        self.limit_history = int(get_env(profile or DEFAULT_PROFILE, "limit_history") or 4)
+        self.chat_log_id = chat_log_id or DEFAULT_CHAT_LOG_ID
+        self.folder_path = os.path.join(get_home_path(), ".occ", profile or DEFAULT_PROFILE)
         self.image_folder_path = os.path.join(self.folder_path, "images")
         self.file_name = os.path.join(self.folder_path, f"{self.chat_log_id}.log")
         os.makedirs(self.folder_path, exist_ok=True)
@@ -31,12 +34,11 @@ class CommandChat:
         if not os.path.exists(self.file_name):
             open(self.file_name, 'w').close()
         self.messages = [json.loads(line) for line in (line.strip() for line in open(self.file_name)) if line.strip()]
+        self.client = OpenAI()
 
     def image_create(self, description, size, num):
-        openai.api_key = self.api_key
-        openai.api_base = self.api_base
         try:
-            response = openai.Image.create(
+            response = self.client.Image.create(
                 prompt=description,
                 n=num,
                 size=size
@@ -68,31 +70,32 @@ class CommandChat:
         message = {"role": "user", "content": message}
         self.messages.append(message)
         waiting_start()
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+        response = self.client.chat.completions.create(
+            model="o1-mini",
             messages=self.messages,
-            temperature=0.2,
+            temperature=1,
             top_p=1,
             frequency_penalty=0.0,
-            presence_penalty=0.5,
             stream=True
         )
         waiting_stop()
         completion_text = ''
-        content = ''
         role = None
-        for event in response:
-            if event['choices'][0]["finish_reason"] == "stop":
+        for chunk in response:
+            if chunk.choices is None or len(chunk.choices) == 0:
+                continue
+            choice = chunk.choices[0]
+            delta = choice.delta
+
+            if choice.finish_reason == "stop":
                 break
-            if role is None:
-                try:
-                    role = event['choices'][0]["delta"]["role"]
-                except Exception:
-                    content = event['choices'][0]["delta"]["content"]
-            else:
-                content = event['choices'][0]["delta"]["content"]
-            completion_text += content
-            print(content, end="")
+
+            if role is None and delta.role:
+                role = delta.role
+
+            if delta.content:
+                completion_text += delta.content
+                print(delta.content, end="")
         print("\n")
         self.record_chat_logs(message, {"role": role, "content": completion_text.replace("\n\n", "")})
 
