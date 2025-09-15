@@ -6,7 +6,7 @@ import pkg_resources
 
 import occ.utils.logger as logger
 
-config = configparser.SafeConfigParser()
+config = configparser.ConfigParser()
 
 
 def get_home_path():

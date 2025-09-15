@@ -1,6 +1,6 @@
 import click
 
-debug_logging = False;
+debug_logging = False
 
 all_colors = 'black', 'red', 'green', 'yellow', 'blue', 'magenta', \
     'cyan', 'white', 'bright_black', 'bright_red', \
