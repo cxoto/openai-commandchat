@@ -1,14 +1,14 @@
 from __future__ import absolute_import
 
 import click
-import pkg_resources
+import importlib.metadata
 
 import occ.utils.logger as logger
 from occ.configuration.profile_config import add_profile, add_default_profile
 from occ.CommandChat import CommandChat
 from occ.utils.CommonUtil import waiting_stop
 
-VERSION = pkg_resources.require("commandchat")[0].version
+VERSION = importlib.metadata.version("commandchat")
 
 
 @click.group()
@@ -68,3 +68,6 @@ commandchat_operator.add_command(image)
 
 def main():
     commandchat_operator()
+
+if __name__ == '__main__':
+    main()

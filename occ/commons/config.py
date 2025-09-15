@@ -2,7 +2,7 @@ import configparser
 import logging
 import os
 
-import pkg_resources
+import importlib
 
 import occ.utils.logger as logger
 
@@ -95,5 +95,5 @@ def log_config():
 
 
 def find_version():
-    version = pkg_resources.require("recordset")[0].version
+    version = importlib.metadata.version("commandchat")
     print(version)
