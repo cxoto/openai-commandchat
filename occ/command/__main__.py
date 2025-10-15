@@ -18,7 +18,7 @@ def commandchat_operator():
 
 
 @click.command()
-@click.option('-profile', help='Enable profile name')
+@click.option('--profile', '-p', help='Enable profile name')
 def configure(profile):
     if profile is not None:
         add_profile(profile)
@@ -29,10 +29,11 @@ def configure(profile):
 @click.command()
 @click.argument('message')
 @click.option('-id', help=' enter chat id, something like context')
-@click.option('-profile', help='Enable profile name')
-def chat(message, id, profile):
+@click.option('--profile', '-p', help='Enable profile name')
+@click.option("--model", "-m", envvar="OCC_MODEL", default="o1-mini", help="Specify the model to use for this chat session")
+def chat(message, id, profile, model):
     try:
-        CommandChat(profile=profile, chat_log_id=id).chat(message)
+        CommandChat(profile=profile, chat_log_id=id).chat(message, model)
     except Exception as e:
         logger.log_g(str(e))
         waiting_stop()
@@ -68,6 +69,7 @@ commandchat_operator.add_command(image)
 
 def main():
     commandchat_operator()
+
 
 if __name__ == '__main__':
     main()

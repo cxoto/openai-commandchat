@@ -64,14 +64,14 @@ class CommandChat:
             print(e.http_status)
             print(e.error)
 
-    def chat(self, message):
+    def chat(self, message, model):
         openai.api_key = self.api_key
         openai.api_base = self.api_base
         message = {"role": "user", "content": message}
         self.messages.append(message)
         waiting_start()
         response = self.client.chat.completions.create(
-            model="o1-mini",
+            model=model,
             messages=self.messages,
             temperature=1,
             top_p=1,
