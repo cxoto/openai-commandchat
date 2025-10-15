@@ -1,6 +1,7 @@
 import json
 import openai
 from openai import OpenAI
+from openai import AzureOpenAI
 import os
 
 from occ.commons.config import get_env
@@ -34,7 +35,12 @@ class CommandChat:
         if not os.path.exists(self.file_name):
             open(self.file_name, 'w').close()
         self.messages = [json.loads(line) for line in (line.strip() for line in open(self.file_name)) if line.strip()]
-        self.client = OpenAI()
+        if "azure" == get_env(profile or DEFAULT_PROFILE, "api_server_type"):
+            self.client = AzureOpenAI(api_key=self.api_key,
+                                      api_version=get_env(profile or DEFAULT_PROFILE, "api_version"),
+                                      azure_endpoint=self.api_base)
+        else:
+            self.client = OpenAI()
 
     def image_create(self, description, size, num):
         try:
@@ -64,7 +70,29 @@ class CommandChat:
             print(e.http_status)
             print(e.error)
 
+    def completions(self, message, model):
+        waiting_start()
+        stream = self.client.completions.create(
+            model=model,
+            prompt=message,
+            max_tokens=4090 - len(message),
+            temperature=0.1,
+            stream=True
+        )
+        waiting_stop()
+        for completion in stream:
+            for choice in completion.choices:
+                print(choice.text, end="")
+
+        print("\n")
+
     def chat(self, message, model):
+        if model == "gpt-35-turbo-instruct":
+            self.completions(message, model)
+        else:
+            self.chat_completions(message, model)
+
+    def chat_completions(self, message, model):
         openai.api_key = self.api_key
         openai.api_base = self.api_base
         message = {"role": "user", "content": message}
@@ -117,3 +145,8 @@ class CommandChat:
             f.seek(0)
             f.truncate()
             f.writelines(lines)
+
+
+if __name__ == '__main__':
+    command_chat = CommandChat()
+    command_chat.chat("帮我写一个python的冒泡排序算法", "gpt-35-turbo-instruct")
