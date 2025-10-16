@@ -1,7 +1,11 @@
 from __future__ import absolute_import
+from prompt_toolkit import prompt
+import sys
 
 import click
 import importlib.metadata
+
+from prompt_toolkit.key_binding import KeyBindings
 
 import occ.utils.logger as logger
 from occ.configuration.profile_config import add_profile, add_default_profile
@@ -27,12 +31,25 @@ def configure(profile):
 
 
 @click.command()
-@click.argument('message')
+@click.argument('message', required=False)
 @click.option('-id', help=' enter chat id, something like context')
 @click.option('--profile', '-p', help='Enable profile name')
-@click.option("--model", "-m", envvar="OCC_MODEL", default="o1-mini", help="Specify the model to use for this chat session")
-def chat(message, id, profile, model):
+@click.option("--model", "-m", envvar="OCC_MODEL", default="o1-mini",
+              help="Specify the model to use for this chat session")
+@click.option('--file', '-f', type=click.Path(exists=True), help='the prompt or message is from a file')
+def chat(message, id, profile, model, file):
     try:
+        if file:
+            with open(file, 'r') as f:
+                message = f.read()
+        elif not message and not sys.stdin.isatty():
+            message = sys.stdin.read()
+        elif not message:
+            message = prompt(
+                "Please enter your message/prompt: \n",
+                multiline=True,
+                prompt_continuation=lambda width, line_num, is_soft_wrap: '',  # 多行提示符
+            )
         CommandChat(profile=profile, chat_log_id=id).chat(message, model)
     except Exception as e:
         logger.log_g(str(e))
