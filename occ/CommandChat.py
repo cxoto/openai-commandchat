@@ -1,14 +1,23 @@
 import json
+import sys
+import time
+
 import openai
 from openai import OpenAI
 from openai import AzureOpenAI
 import os
+
+from prompt_toolkit import print_formatted_text, HTML
 
 from occ.commons.config import get_env
 from occ.utils.CommonUtil import save_and_copy_image, waiting_start, waiting_stop
 
 DEFAULT_CHAT_LOG_ID = "chat-1"
 DEFAULT_PROFILE = "default"
+USER_COLOR = "ansiyellow"
+ASSISTANT_COLOR = "ansicyan"
+TYPING_DELAY = 0.009  # 打字速度（秒/字符）
+SEPARATOR = "─" * 30
 
 
 def get_home_path():
@@ -16,6 +25,12 @@ def get_home_path():
     if os.name == 'nt':
         homedir = os.path.expanduser('~')
     return homedir
+
+
+def print_formatted(content: str, end: str):
+    print_formatted_text(HTML(f"<{ASSISTANT_COLOR}>{content}</{ASSISTANT_COLOR}>"), end=end)
+    sys.stdout.flush()
+    time.sleep(TYPING_DELAY)
 
 
 class CommandChat:
@@ -70,8 +85,14 @@ class CommandChat:
             print(e.http_status)
             print(e.error)
 
+    def chat(self, message, model):
+        print_formatted_text(HTML(f"<{ASSISTANT_COLOR}>🤖 Assistant: </{ASSISTANT_COLOR}>\n"))
+        if model == "gpt-35-turbo-instruct":
+            self.completions(message, model)
+        else:
+            self.chat_completions(message, model)
+
     def completions(self, message, model):
-        waiting_start()
         stream = self.client.completions.create(
             model=model,
             prompt=message,
@@ -79,25 +100,16 @@ class CommandChat:
             temperature=0.1,
             stream=True
         )
-        waiting_stop()
         for completion in stream:
             for choice in completion.choices:
-                print(choice.text, end="")
-
+                print_formatted(choice.text, end="")
         print("\n")
-
-    def chat(self, message, model):
-        if model == "gpt-35-turbo-instruct":
-            self.completions(message, model)
-        else:
-            self.chat_completions(message, model)
 
     def chat_completions(self, message, model):
         openai.api_key = self.api_key
         openai.api_base = self.api_base
         message = {"role": "user", "content": message}
         self.messages.append(message)
-        waiting_start()
         response = self.client.chat.completions.create(
             model=model,
             messages=self.messages,
@@ -106,7 +118,6 @@ class CommandChat:
             frequency_penalty=0.0,
             stream=True
         )
-        waiting_stop()
         completion_text = ''
         role = None
         for chunk in response:
@@ -123,7 +134,7 @@ class CommandChat:
 
             if delta.content:
                 completion_text += delta.content
-                print(delta.content, end="")
+                print_formatted(delta.content, end="")
         print("\n")
         self.record_chat_logs(message, {"role": role, "content": completion_text.replace("\n\n", "")})
 

@@ -1,15 +1,20 @@
 from __future__ import absolute_import
-from prompt_toolkit import prompt
+
+import importlib.metadata
 import sys
 
 import click
-import importlib.metadata
-
-from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit import PromptSession, print_formatted_text, HTML
+from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.styles import style_from_pygments_cls
+from pygments.lexers.markup import MarkdownLexer
+from pygments.styles.tango import TangoStyle
 
 import occ.utils.logger as logger
-from occ.configuration.profile_config import add_profile, add_default_profile
 from occ.CommandChat import CommandChat
+from occ.configuration.profile_config import add_profile, add_default_profile
 from occ.utils.CommonUtil import waiting_stop
 
 VERSION = importlib.metadata.version("commandchat")
@@ -33,7 +38,7 @@ def configure(profile):
 @click.command()
 @click.argument('message', required=False)
 @click.option('-id', help=' enter chat id, something like context')
-@click.option('--profile', '-p', help='Enable profile name')
+@click.option('--profile', '-p', envvar="OCC_PROFILE", help='Enable profile name')
 @click.option("--model", "-m", envvar="OCC_MODEL", default="o1-mini",
               help="Specify the model to use for this chat session")
 @click.option('--file', '-f', type=click.Path(exists=True), help='the prompt or message is from a file')
@@ -45,11 +50,26 @@ def chat(message, id, profile, model, file):
         elif not message and not sys.stdin.isatty():
             message = sys.stdin.read()
         elif not message:
-            message = prompt(
-                "Please enter your message/prompt: \n",
-                multiline=True,
-                prompt_continuation=lambda width, line_num, is_soft_wrap: '',  # 多行提示符
+            session = PromptSession(
+                lexer=PygmentsLexer(MarkdownLexer),
+                show_frame=True,
+                style=style_from_pygments_cls(TangoStyle), multiline=True, wrap_lines=True,
+                cursor=ModalCursorShapeConfig(),
             )
+            print_formatted_text(HTML("<ansibrightwhite>AI model Terminal</ansibrightwhite><ansired>Type /exit or /quit to end this terminal</ansired>\n"))
+            while True:
+                try:
+                    message = session.prompt("👤 You: \n")
+                    if not message:
+                        continue
+                    if message.lower() in {"/exit", "/quit"}:
+                        print_formatted_text(HTML("<ansired>Bye 👋</ansired>"))
+                        exit(0)
+                    CommandChat(profile=profile, chat_log_id=id).chat(message, model)
+                    print()
+                except KeyboardInterrupt:
+                    print_formatted_text(HTML("<ansired>\n(Interrupted)</ansired>"))
+                    exit(0)
         CommandChat(profile=profile, chat_log_id=id).chat(message, model)
     except Exception as e:
         logger.log_g(str(e))
