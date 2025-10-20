@@ -6,8 +6,6 @@ import sys
 import click
 from prompt_toolkit import PromptSession, print_formatted_text, HTML
 from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import style_from_pygments_cls
 from pygments.lexers.markup import MarkdownLexer
 from pygments.styles.tango import TangoStyle
@@ -51,18 +49,23 @@ def chat(message, id, profile, model, file):
             message = sys.stdin.read()
         elif not message:
             session = PromptSession(
-                lexer=PygmentsLexer(MarkdownLexer),
                 show_frame=True,
                 style=style_from_pygments_cls(TangoStyle), multiline=True, wrap_lines=True,
                 cursor=ModalCursorShapeConfig(),
             )
-            print_formatted_text(HTML("<ansibrightwhite>AI model Terminal</ansibrightwhite><ansired>Type /exit or /quit to end this terminal</ansired>\n"))
+            print_formatted_text(HTML("<ansibrightwhite>AI model Terminal</ansibrightwhite>\n"))
             while True:
                 try:
                     message = session.prompt("👤 You: \n")
                     if not message:
                         continue
-                    if message.lower() in {"/exit", "/quit"}:
+                    if message.lower() in {"/help", "/Help"}:
+                        print_formatted_text(HTML(
+                            "<b>Help Info: \n</b><ansigreen>Type your message and press ESC+Enter or OPT+Enter to send.\n"
+                            "Use /exit or /quit or /q to leave the chat.\n"
+                            "Use /help to show this message again.</ansigreen>\n"))
+                        continue
+                    if message.lower() in {"/exit", "/quit", "/q"}:
                         print_formatted_text(HTML("<ansired>Bye 👋</ansired>"))
                         exit(0)
                     CommandChat(profile=profile, chat_log_id=id).chat(message, model)

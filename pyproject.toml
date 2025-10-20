@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "commandchat"
-version = "0.0.9"
+version = "0.0.10"
 description = "use command to chat with openai models"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -16,7 +16,8 @@ dependencies = [
     "click",
     "Image",
     "openai",
-    "prompt_toolkit"
+    "prompt_toolkit",
+    "rich",
 ]
 
 classifiers = [

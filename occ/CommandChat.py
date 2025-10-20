@@ -1,13 +1,23 @@
+import asyncio
 import json
 import sys
 import time
+from pathlib import Path
+from typing import AsyncGenerator
 
 import openai
-from openai import OpenAI
+from openai import OpenAI, Stream
 from openai import AzureOpenAI
 import os
 
-from prompt_toolkit import print_formatted_text, HTML
+from openai.types.chat import ChatCompletionChunk
+from openai.types.chat.chat_completion_chunk import Choice
+from prompt_toolkit import print_formatted_text, HTML, Application
+from prompt_toolkit.layout import Layout, HSplit
+from prompt_toolkit.widgets import TextArea
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.live import Live
 
 from occ.commons.config import get_env
 from occ.utils.CommonUtil import save_and_copy_image, waiting_start, waiting_stop
@@ -27,15 +37,21 @@ def get_home_path():
     return homedir
 
 
-def print_formatted(content: str, end: str):
-    print_formatted_text(HTML(f"<{ASSISTANT_COLOR}>{content}</{ASSISTANT_COLOR}>"), end=end)
+console = Console()
+
+
+def print_formatted(content: str, live: Live):
+    md = Markdown(content)
+    live.update(md)
     sys.stdout.flush()
-    time.sleep(TYPING_DELAY)
 
 
 class CommandChat:
+    partial_text = []
+    role = None
 
     def __init__(self, profile=None, chat_log_id=None):
+        now = time.strftime("%Y%m%d", time.localtime())
         self.api_key = get_env(profile or DEFAULT_PROFILE, "api_key")
         self.api_base = get_env(profile or DEFAULT_PROFILE, "api_base_url")
         os.environ.setdefault("OPENAI_API_KEY", self.api_key)
@@ -47,8 +63,10 @@ class CommandChat:
         self.file_name = os.path.join(self.folder_path, f"{self.chat_log_id}.log")
         os.makedirs(self.folder_path, exist_ok=True)
         os.makedirs(self.image_folder_path, exist_ok=True)
+        self.model = None
         if not os.path.exists(self.file_name):
             open(self.file_name, 'w').close()
+        self.history_path = Path(self.folder_path, self.chat_log_id) / f"md_history_{now}.md"
         self.messages = [json.loads(line) for line in (line.strip() for line in open(self.file_name)) if line.strip()]
         if "azure" == get_env(profile or DEFAULT_PROFILE, "api_server_type"):
             self.client = AzureOpenAI(api_key=self.api_key,
@@ -58,32 +76,7 @@ class CommandChat:
             self.client = OpenAI()
 
     def image_create(self, description, size, num):
-        try:
-            response = self.client.Image.create(
-                prompt=description,
-                n=num,
-                size=size
-            )
-            for index in range(num):
-                image_url = response['data'][index]['url']
-                save_and_copy_image(image_url, self.image_folder_path)
-        except openai.error.OpenAIError as e:
-            print(e.http_status)
-            print(e.error)
-
-    def image_create_variation(self, img_file, size):
-        openai.api_key = self.api_key
-        openai.api_base = self.api_base
-        try:
-            response = openai.Image.create_variation(
-                open(img_file, "rb"),
-                n=1,
-                size=size
-            )
-            save_and_copy_image(response['data'][0]['url'], self.image_folder_path)
-        except openai.error.OpenAIError as e:
-            print(e.http_status)
-            print(e.error)
+        raise NotImplementedError
 
     def chat(self, message, model):
         print_formatted_text(HTML(f"<{ASSISTANT_COLOR}>🤖 Assistant: </{ASSISTANT_COLOR}>"))
@@ -100,43 +93,86 @@ class CommandChat:
             temperature=0.1,
             stream=True
         )
-        for completion in stream:
-            for choice in completion.choices:
-                print_formatted(choice.text, end="")
+        completion_text = ''
+        with Live(console=console, refresh_per_second=8) as live:
+            for completion in stream:
+                for choice in completion.choices:
+                    completion_text += choice.text
+                    print_formatted(completion_text, live)
         print("\n")
 
     def chat_completions(self, message, model):
-        openai.api_key = self.api_key
-        openai.api_base = self.api_base
         message = {"role": "user", "content": message}
         self.messages.append(message)
+        self.model = model
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            final_text = loop.run_until_complete(self.main_with_stream(self.async_stream))
+        except KeyboardInterrupt:
+            final_text = None
+        finally:
+            loop.close()
+
+        if final_text is None:
+            console.print("\n[bold red]Stream was interrupted or user exited (no final output).[/bold red]")
+            sys.exit(0)
+        md = Markdown(final_text)
+        self.append_to_history(final_text)
+        console.clear()
+        console.print(md)
+        self.record_chat_logs(message, {"role": self.role, "content": final_text.replace("\n\n", "")})
+
+    async def async_stream(self) -> AsyncGenerator[Choice, None]:
         response = self.client.chat.completions.create(
-            model=model,
+            model=self.model,
             messages=self.messages,
             temperature=1,
             top_p=1,
             frequency_penalty=0.0,
             stream=True
         )
-        completion_text = ''
-        role = None
         for chunk in response:
             if chunk.choices is None or len(chunk.choices) == 0:
                 continue
             choice = chunk.choices[0]
-            delta = choice.delta
+            await asyncio.sleep(0.01)
+            yield choice
 
-            if choice.finish_reason == "stop":
-                break
+    async def main_with_stream(self, async_stream):
+        self.partial_text = []
+        text_area = TextArea(
+            text="",
+            wrap_lines=True,
+            read_only=True,
+        )
+        app = Application(layout=Layout(HSplit([text_area])), full_screen=False)
 
-            if role is None and delta.role:
-                role = delta.role
+        async def producer():
+            try:
+                async for chunk in async_stream():
+                    delta = chunk.delta
+                    if chunk.finish_reason == "stop": break
+                    if self.role is None and delta.role:
+                        self.role = delta.role
+                    if delta.content:
+                        self.partial_text.append(delta.content)
+                        joined = "".join(self.partial_text)
+                        text_area.text = joined
+                        text_area.buffer.cursor_position = len(text_area.buffer.text)
+                        app.invalidate()
+                text_area.text = ""
+                app.invalidate()
+                app.exit()
+            except asyncio.CancelledError:
+                app.exit(result=None)
+            except Exception as e:
+                self.partial_text.append(f"\n\n[ERROR] {e}")
+                app.exit(result="".join(self.partial_text))
 
-            if delta.content:
-                completion_text += delta.content
-                print_formatted(delta.content, end="")
-        print("\n")
-        self.record_chat_logs(message, {"role": role, "content": completion_text.replace("\n\n", "")})
+        app.create_background_task(producer())
+        await app.run_async()
+        return "".join(self.partial_text)
 
     def record_chat_logs(self, content, completion_text):
         with open(self.file_name, 'r+') as f:
@@ -157,7 +193,19 @@ class CommandChat:
             f.truncate()
             f.writelines(lines)
 
+    def append_to_history(self, md_text: str):
+        self.history_path.parent.mkdir(parents=True, exist_ok=True)
+        # 追加分隔符 + markdown 内容
+        with self.history_path.open("a", encoding="utf-8") as f:
+            f.write("\n\n---\n\n")
+            f.write(md_text)
+
+    def read_history(self) -> str:
+        if not self.history_path.exists():
+            return ""
+        return self.history_path.read_text(encoding="utf-8")
+
 
 if __name__ == '__main__':
     command_chat = CommandChat()
-    command_chat.chat("帮我写一个python的冒泡排序算法", "gpt-35-turbo-instruct")
+    command_chat.chat("帮我写一个python的冒泡排序算法, 详细点回答", "o1-mini")
