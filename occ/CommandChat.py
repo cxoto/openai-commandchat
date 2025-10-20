@@ -16,7 +16,7 @@ DEFAULT_CHAT_LOG_ID = "chat-1"
 DEFAULT_PROFILE = "default"
 USER_COLOR = "ansiyellow"
 ASSISTANT_COLOR = "ansicyan"
-TYPING_DELAY = 0.009  # 打字速度（秒/字符）
+TYPING_DELAY = 0.01  # 打字速度（秒/字符）
 SEPARATOR = "─" * 30
 
 
@@ -86,7 +86,7 @@ class CommandChat:
             print(e.error)
 
     def chat(self, message, model):
-        print_formatted_text(HTML(f"<{ASSISTANT_COLOR}>🤖 Assistant: </{ASSISTANT_COLOR}>\n"))
+        print_formatted_text(HTML(f"<{ASSISTANT_COLOR}>🤖 Assistant: </{ASSISTANT_COLOR}>"))
         if model == "gpt-35-turbo-instruct":
             self.completions(message, model)
         else:
