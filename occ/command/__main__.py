@@ -53,7 +53,6 @@ def chat(message, id, profile, model, file):
                 style=style_from_pygments_cls(TangoStyle), multiline=True, wrap_lines=True,
                 cursor=ModalCursorShapeConfig(),
             )
-            print_formatted_text(HTML("<ansibrightwhite>AI model Terminal</ansibrightwhite>\n"))
             while True:
                 try:
                     message = session.prompt("👤 You: \n")

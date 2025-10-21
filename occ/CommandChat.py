@@ -108,7 +108,7 @@ class CommandChat:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            final_text = loop.run_until_complete(self.main_with_stream(self.async_stream))
+            final_text = loop.run_until_complete(self.print_streaming(self.async_stream))
         except KeyboardInterrupt:
             final_text = None
         finally:
@@ -119,7 +119,6 @@ class CommandChat:
             sys.exit(0)
         md = Markdown(final_text)
         self.append_to_history(final_text)
-        console.clear()
         console.print(md)
         self.record_chat_logs(message, {"role": self.role, "content": final_text.replace("\n\n", "")})
 
@@ -139,7 +138,7 @@ class CommandChat:
             await asyncio.sleep(0.01)
             yield choice
 
-    async def main_with_stream(self, async_stream):
+    async def print_streaming(self, async_stream):
         self.partial_text = []
         text_area = TextArea(
             text="",
@@ -208,4 +207,4 @@ class CommandChat:
 
 if __name__ == '__main__':
     command_chat = CommandChat()
-    command_chat.chat("帮我写一个python的冒泡排序算法, 详细点回答", "o1-mini")
+    command_chat.chat("帮我写一个python的冒泡排序算法", "o1-mini")
