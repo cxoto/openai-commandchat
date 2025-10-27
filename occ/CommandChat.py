@@ -1,26 +1,23 @@
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
 from typing import AsyncGenerator
 
-import openai
-from openai import OpenAI, Stream
 from openai import AzureOpenAI
-import os
-
-from openai.types.chat import ChatCompletionChunk
+from openai import OpenAI
 from openai.types.chat.chat_completion_chunk import Choice
 from prompt_toolkit import print_formatted_text, HTML, Application
+from prompt_toolkit.clipboard.pyperclip import PyperclipClipboard
 from prompt_toolkit.layout import Layout, HSplit
 from prompt_toolkit.widgets import TextArea
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.live import Live
+from rich.markdown import Markdown
 
 from occ.commons.config import get_env
-from occ.utils.CommonUtil import save_and_copy_image, waiting_start, waiting_stop
 
 DEFAULT_CHAT_LOG_ID = "chat-1"
 DEFAULT_PROFILE = "default"
@@ -37,8 +34,8 @@ def get_home_path():
     return homedir
 
 
+clip = PyperclipClipboard()
 console = Console()
-
 
 def print_formatted(content: str, live: Live):
     md = Markdown(content)
@@ -99,6 +96,7 @@ class CommandChat:
                 for choice in completion.choices:
                     completion_text += choice.text
                     print_formatted(completion_text, live)
+        clip.set_text(completion_text)
         print("\n")
 
     def chat_completions(self, message, model):
@@ -120,6 +118,7 @@ class CommandChat:
         md = Markdown(final_text)
         self.append_to_history(final_text)
         console.print(md)
+        clip.set_text(final_text)
         self.record_chat_logs(message, {"role": self.role, "content": final_text.replace("\n\n", "")})
 
     async def async_stream(self) -> AsyncGenerator[Choice, None]:
