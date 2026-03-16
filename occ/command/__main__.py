@@ -13,7 +13,7 @@ from pygments.styles.tango import TangoStyle
 import occ.utils.logger as logger
 from occ.CommandChat import CommandChat
 from occ.configuration.profile_config import add_profile, add_default_profile
-from occ.utils.CommonUtil import waiting_stop
+
 
 VERSION = importlib.metadata.version("commandchat")
 
@@ -75,7 +75,6 @@ def chat(message, id, profile, model, file):
         CommandChat(profile=profile, chat_log_id=id).chat(message, model)
     except Exception as e:
         logger.log_g(str(e))
-        waiting_stop()
 
 
 size_map = {
