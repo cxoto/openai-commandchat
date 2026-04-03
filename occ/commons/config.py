@@ -71,10 +71,8 @@ def get_env(profile, key):
     if config.has_option('default', key):
         return config.get('default', key)
 
-    logger.debug("No Value Found in DEAFULT SECTION as well")
-    logger.log_r(
-        'Value not found in [Default Profile] use `occ configure`comamnd')
-    exit()
+    logger.debug("No Value Found in DEFAULT SECTION as well")
+    return None
 
 
 def get_default_env(key):
@@ -84,7 +82,64 @@ def get_default_env(key):
 
 
 def get_profiles():
-    return config.sections()
+    """Get all profile names (excluding model-specific sections)"""
+    profiles = []
+    for section in config.sections():
+        # Filter out model-specific sections (e.g., profile_name.model_name)
+        if '.' not in section:
+            profiles.append(section)
+    return profiles
+
+
+def get_profile_models(profile):
+    """Get all models configured for a specific profile"""
+    models = []
+    prefix = f"{profile}."
+    for section in config.sections():
+        if section.startswith(prefix):
+            model_name = section[len(prefix):]
+            models.append(model_name)
+    return models
+
+
+def get_model_config(profile, model):
+    """Get configuration for a specific model under a profile"""
+    section = f"{profile}.{model}"
+    if not config.has_section(section):
+        return None
+    return {
+        'api_key': config.get(section, 'api_key', fallback=None),
+        'api_base_url': config.get(section, 'api_base_url', fallback=None),
+        'api_version': config.get(section, 'api_version', fallback=None)
+    }
+
+
+def set_model_config(profile, model, api_key, api_base_url, api_version):
+    """Set configuration for a specific model under a profile"""
+    section = f"{profile}.{model}"
+    if not config.has_section(section):
+        config.add_section(section)
+    config.set(section, 'api_key', api_key)
+    config.set(section, 'api_base_url', api_base_url)
+    config.set(section, 'api_version', api_version)
+    write_config()
+
+
+def remove_profile(profile):
+    """Remove a profile and all its associated models"""
+    if config.has_section(profile):
+        config.remove_section(profile)
+    # Remove all model sections
+    prefix = f"{profile}."
+    for section in list(config.sections()):
+        if section.startswith(prefix):
+            config.remove_section(section)
+    write_config()
+
+
+def profile_exists(profile):
+    """Check if a profile exists"""
+    return config.has_section(profile)
 
 
 def log_config():

@@ -4,7 +4,8 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
+from dataclasses import dataclass
 
 from openai import AzureOpenAI
 from openai import OpenAI
@@ -18,6 +19,16 @@ from rich.live import Live
 from rich.markdown import Markdown
 
 from occ.commons.config import get_env
+
+
+@dataclass
+class StreamChunk:
+    """Unified streaming chunk for both chat.completions and responses API"""
+    content: Optional[str] = None
+    role: Optional[str] = None
+    finish_reason: Optional[str] = None
+    event_type: Optional[str] = None
+
 
 DEFAULT_CHAT_LOG_ID = "chat-1"
 DEFAULT_PROFILE = "default"
@@ -47,37 +58,134 @@ class CommandChat:
     partial_text = []
     role = None
 
-    def __init__(self, profile=None, chat_log_id=None):
+    def __init__(self, profile=None, chat_log_id=None, model=None):
         now = time.strftime("%Y%m%d", time.localtime())
-        self.api_key = get_env(profile or DEFAULT_PROFILE, "api_key")
-        self.api_base = get_env(profile or DEFAULT_PROFILE, "api_base_url")
-        os.environ.setdefault("OPENAI_API_KEY", self.api_key)
-        os.environ.setdefault("OPENAI_BASE_URL", self.api_base)
-        self.limit_history = int(get_env(profile or DEFAULT_PROFILE, "limit_history") or 4)
+        self.profile = profile or DEFAULT_PROFILE
+        self.api_server_type = get_env(self.profile, "api_server_type")
+        
+        if not self.api_server_type:
+            raise ValueError(f"Profile '{self.profile}' is not configured. Please run 'occ configure -p {self.profile}' first.")
+        
+        self.limit_history = int(get_env(self.profile, "limit_history") or 4)
         self.chat_log_id = chat_log_id or DEFAULT_CHAT_LOG_ID
-        self.folder_path = os.path.join(get_home_path(), ".occ", profile or DEFAULT_PROFILE)
+        self.folder_path = os.path.join(get_home_path(), ".occ", self.profile)
         self.image_folder_path = os.path.join(self.folder_path, "images")
         self.file_name = os.path.join(self.folder_path, f"{self.chat_log_id}.log")
         os.makedirs(self.folder_path, exist_ok=True)
         os.makedirs(self.image_folder_path, exist_ok=True)
-        self.model = None
+        self.model = model
+        self.current_model_config = None
+        
         if not os.path.exists(self.file_name):
             open(self.file_name, 'w').close()
         self.history_path = Path(self.folder_path, self.chat_log_id) / f"md_history_{now}.md"
-        self.messages = [json.loads(line) for line in (line.strip() for line in open(self.file_name)) if line.strip()]
-        if "azure" == get_env(profile or DEFAULT_PROFILE, "api_server_type"):
-            self.client = AzureOpenAI(api_key=self.api_key,
-                                      api_version=get_env(profile or DEFAULT_PROFILE, "api_version"),
-                                      azure_endpoint=self.api_base)
-        else:
+        # Load messages and filter out invalid ones (with null role)
+        self.messages = []
+        for line in open(self.file_name):
+            line = line.strip()
+            if line:
+                try:
+                    msg = json.loads(line)
+                    # Ensure role is valid
+                    if msg.get('role') in ['system', 'assistant', 'user', 'function', 'tool', 'developer']:
+                        self.messages.append(msg)
+                except json.JSONDecodeError:
+                    continue
+        
+        # Initialize client based on API server type
+        if self.api_server_type == "azure-openai":
+            # For Azure OpenAI, we'll initialize client per model in chat method
+            self.client = None
+        elif self.api_server_type == "openai":
+            self.api_key = get_env(self.profile, "api_key")
+            self.api_base = get_env(self.profile, "api_base_url")
+            
+            if not self.api_key:
+                raise ValueError(f"API key not configured for profile '{self.profile}'. Please run 'occ configure -p {self.profile}' first.")
+            
+            os.environ.setdefault("OPENAI_API_KEY", self.api_key)
+            os.environ.setdefault("OPENAI_BASE_URL", self.api_base)
             self.client = OpenAI()
+        else:
+            # Fallback for legacy "azure" type
+            self.api_key = get_env(self.profile, "api_key")
+            self.api_base = get_env(self.profile, "api_base_url")
+            
+            if not self.api_key:
+                raise ValueError(f"API key not configured for profile '{self.profile}'. Please run 'occ configure -p {self.profile}' first.")
+            
+            os.environ.setdefault("OPENAI_API_KEY", self.api_key)
+            os.environ.setdefault("OPENAI_BASE_URL", self.api_base)
+            if "azure" == self.api_server_type:
+                self.client = AzureOpenAI(api_key=self.api_key,
+                                          api_version=get_env(self.profile, "api_version"),
+                                          azure_endpoint=self.api_base)
+            else:
+                self.client = OpenAI()
+    
+    def _get_azure_client(self, model):
+        """Get Azure OpenAI client for a specific model"""
+        from occ.commons.config import get_model_config
+        
+        model_config = get_model_config(self.profile, model)
+        if not model_config:
+            raise ValueError(f"Model '{model}' not found in profile '{self.profile}'")
+        
+        self.current_model_config = model_config
+        return AzureOpenAI(
+            api_key=model_config['api_key'],
+            api_version=model_config['api_version'],
+            azure_endpoint=model_config['api_base_url']
+        )
+    
+    def _is_completions_model(self, model):
+        """Check if model uses completions API instead of chat completions API"""
+        # Azure OpenAI behavior is different from standard OpenAI
+        # For Azure, most models (including codex) use chat completions API
+        if self.api_server_type in ["azure-openai", "azure"]:
+            # Only specific instruct models use completions API in Azure
+            azure_completions_models = [
+                'gpt-35-turbo-instruct',
+                'text-davinci-003',
+                'text-davinci-002',
+            ]
+            return model in azure_completions_models
+        
+        # For standard OpenAI
+        completions_models = [
+            'gpt-35-turbo-instruct',
+            'text-davinci-003',
+            'text-davinci-002',
+            'text-curie-001',
+            'text-babbage-001',
+            'text-ada-001',
+        ]
+        
+        # Check exact match
+        if model in completions_models:
+            return True
+        
+        # Check if model contains 'instruct' or 'davinci' (but not codex for standard OpenAI)
+        # Note: Codex models behavior varies, so we only check by keyword for OpenAI
+        model_lower = model.lower()
+        if any(keyword in model_lower for keyword in ['instruct', 'davinci']):
+            return True
+        
+        return False
 
     def image_create(self, description, size, num):
         raise NotImplementedError
 
     def chat(self, message, model):
+        # Initialize Azure client if needed
+        if self.api_server_type == "azure-openai":
+            self.client = self._get_azure_client(model)
+        
         print_formatted_text(HTML(f"<{ASSISTANT_COLOR}>🤖 Assistant: </{ASSISTANT_COLOR}>"))
-        if model == "gpt-35-turbo-instruct":
+        
+        # Check if model requires completions API instead of chat completions
+        # Models like gpt-35-turbo-instruct, text-davinci-003, codex variants use completions API
+        if self._is_completions_model(model):
             self.completions(message, model)
         else:
             self.chat_completions(message, model)
@@ -103,6 +211,8 @@ class CommandChat:
         message = {"role": "user", "content": message}
         self.messages.append(message)
         self.model = model
+        # Reset role for this chat session
+        self.role = None
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -119,23 +229,97 @@ class CommandChat:
         self.append_to_history(final_text)
         console.print(md)
         clip.set_text(final_text)
-        self.record_chat_logs(message, {"role": self.role, "content": final_text.replace("\n\n", "")})
+        # Ensure role is always set (default to 'assistant' if not returned by model)
+        response_role = self.role if self.role else "assistant"
+        self.record_chat_logs(message, {"role": response_role, "content": final_text.replace("\n\n", "")})
 
-    async def async_stream(self) -> AsyncGenerator[Choice, None]:
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=self.messages,
-            temperature=1,
-            top_p=1,
-            frequency_penalty=0.0,
-            stream=True
+    async def async_stream(self) -> AsyncGenerator[StreamChunk, None]:
+        """
+        Unified streaming generator that returns StreamChunk objects.
+        Handles both responses API (o1, codex) and chat.completions API (gpt-4, etc.)
+        """
+        # Detect which API to use
+        model_lower = self.model.lower()
+        use_responses_api = (
+            self.model.startswith('o1-') or 
+            self.model.startswith('o1') or
+            'codex' in model_lower
         )
-        for chunk in response:
-            if chunk.choices is None or len(chunk.choices) == 0:
-                continue
-            choice = chunk.choices[0]
-            await asyncio.sleep(0.01)
-            yield choice
+        
+        if use_responses_api:
+            # Use responses API for o1 and codex models
+            response = self.client.responses.create(
+                model=self.model,
+                input=self.messages,
+                stream=True
+            )
+            
+            # Handle responses API streaming with event types
+            for event in response:
+                if hasattr(event, "type"):
+                    match event.type:
+                        case "response.output_text.delta":
+                            # Incremental text output
+                            yield StreamChunk(
+                                content=event.delta,
+                                event_type=event.type
+                            )
+                            await asyncio.sleep(0.01)
+                        
+                        case "response.output_text.done":
+                            # Text output completed
+                            yield StreamChunk(
+                                finish_reason="stop",
+                                event_type=event.type
+                            )
+                        
+                        case "response.output_item.done":
+                            # Item completed - only extract role if status is completed
+                            if hasattr(event, "item"):
+                                if hasattr(event.item, "status") and event.item.status == 'completed':
+                                    # Only get role when status is completed
+                                    if hasattr(event.item, "role"):
+                                        yield StreamChunk(
+                                            role=event.item.role,
+                                            finish_reason="completed",
+                                            event_type=event.type
+                                        )
+                                    else:
+                                        yield StreamChunk(
+                                            finish_reason="completed",
+                                            event_type=event.type
+                                        )
+                        
+                        case _:
+                            # Other event types, just pass through
+                            pass
+        else:
+            # Use chat.completions API for regular models
+            params = {
+                'model': self.model,
+                'messages': self.messages,
+                'temperature': 1,
+                'top_p': 1,
+                'frequency_penalty': 0.0,
+                'stream': True
+            }
+            
+            response = self.client.chat.completions.create(**params)
+            
+            for chunk in response:
+                if chunk.choices is None or len(chunk.choices) == 0:
+                    continue
+                    
+                choice = chunk.choices[0]
+                delta = choice.delta
+                
+                # Convert to unified StreamChunk format
+                yield StreamChunk(
+                    content=delta.content if hasattr(delta, 'content') else None,
+                    role=delta.role if hasattr(delta, 'role') else None,
+                    finish_reason=choice.finish_reason
+                )
+                await asyncio.sleep(0.01)
 
     async def print_streaming(self, async_stream):
         self.partial_text = []
@@ -147,18 +331,32 @@ class CommandChat:
         app = Application(layout=Layout(HSplit([text_area])), full_screen=False)
 
         async def producer():
+            """
+            Process streaming chunks from either API in a unified way.
+            Handles StreamChunk objects regardless of source API.
+            """
             try:
                 async for chunk in async_stream():
-                    delta = chunk.delta
-                    if chunk.finish_reason == "stop": break
-                    if self.role is None and delta.role:
-                        self.role = delta.role
-                    if delta.content:
-                        self.partial_text.append(delta.content)
+                    # Handle finish conditions
+                    if chunk.finish_reason in ("stop", "completed"):
+                        # Extract role before finishing (for responses API)
+                        if chunk.role and self.role is None:
+                            self.role = chunk.role
+                        break
+                    
+                    # Extract role if provided (usually first chunk for chat.completions)
+                    if chunk.role and self.role is None:
+                        self.role = chunk.role
+                    
+                    # Append content if available
+                    if chunk.content:
+                        self.partial_text.append(chunk.content)
                         joined = "".join(self.partial_text)
                         text_area.text = joined
                         text_area.buffer.cursor_position = len(text_area.buffer.text)
                         app.invalidate()
+                
+                # Clear text area and exit
                 text_area.text = ""
                 app.invalidate()
                 app.exit()
