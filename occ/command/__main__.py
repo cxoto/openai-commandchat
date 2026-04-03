@@ -23,10 +23,97 @@ def commandchat_operator():
     pass
 
 
-@click.group()
-def configure():
+def interactive_configure_menu():
+    """Interactive menu for managing profiles"""
+    import questionary
+    from questionary import Style
+    
+    custom_style = Style([
+        ('qmark', 'fg:#673ab7 bold'),
+        ('question', 'bold'),
+        ('answer', 'fg:#f44336 bold'),
+        ('pointer', 'fg:#673ab7 bold'),
+        ('highlighted', 'fg:#673ab7 bold'),
+    ])
+    
+    while True:
+        action = questionary.select(
+            "Profile Configuration - What would you like to do?",
+            choices=[
+                'List all profiles',
+                'Configure profile',
+                'Delete profile',
+                'Exit'
+            ],
+            style=custom_style
+        ).ask()
+        
+        if action is None or action == 'Exit':
+            break
+        elif action == 'List all profiles':
+            list_profiles_cmd.callback()
+        elif action == 'Configure profile':
+            interactive_configure_profile()
+        elif action == 'Delete profile':
+            interactive_delete_profile()
+
+
+def interactive_configure_profile():
+    """Interactive profile configuration"""
+    import questionary
+    from occ.commons import config as cfg
+    from occ.configuration.profile_config import configure_profile
+    
+    profiles = cfg.get_profiles()
+    
+    if profiles:
+        choices = profiles + ['[Create New Profile]']
+        selection = questionary.select(
+            "Select a profile to configure:",
+            choices=choices
+        ).ask()
+        
+        if not selection:
+            return
+        
+        if selection == '[Create New Profile]':
+            profile_name = questionary.text("Enter new profile name:").ask()
+            if profile_name:
+                configure_profile(profile_name)
+        else:
+            configure_profile(selection)
+    else:
+        logger.log_g("No profiles found. Creating default profile...")
+        configure_profile('default')
+
+
+def interactive_delete_profile():
+    """Interactive profile deletion"""
+    import questionary
+    from occ.commons import config as cfg
+    
+    profiles = [p for p in cfg.get_profiles() if p != 'default']
+    
+    if not profiles:
+        logger.log_r("No profiles to delete (cannot delete 'default' profile)")
+        return
+    
+    profile = questionary.select(
+        "Select a profile to delete:",
+        choices=profiles
+    ).ask()
+    
+    if profile:
+        delete_profile_cmd.callback(profile, False)
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def configure(ctx):
     """Configure OpenAI or Azure OpenAI profiles and prompts"""
-    pass
+    if ctx.invoked_subcommand is None:
+        # No subcommand provided, show interactive menu
+        interactive_configure_menu()
 
 
 @click.command(name='profile')
@@ -44,12 +131,29 @@ def configure_profile_cmd(profile):
 
 
 @click.command(name='delete-profile')
-@click.argument('profile')
+@click.argument('profile', required=False)
 @click.option('--yes', '-y', is_flag=True, help='Skip confirmation')
 def delete_profile_cmd(profile, yes):
     """Delete a profile"""
     import questionary
     from occ.commons import config as cfg
+    
+    # If profile not provided, show interactive selection
+    if not profile:
+        profiles = [p for p in cfg.get_profiles() if p != 'default']
+        
+        if not profiles:
+            logger.log_r("No profiles to delete (cannot delete 'default' profile)")
+            return
+        
+        profile = questionary.select(
+            "Select a profile to delete:",
+            choices=profiles
+        ).ask()
+        
+        if not profile:
+            logger.log_g("Cancelled")
+            return
     
     if not cfg.profile_exists(profile):
         logger.log_r(f"Profile '{profile}' does not exist")
@@ -239,10 +343,175 @@ def chat(message, id, profile, model, file, prompt):
         logger.log_g(str(e))
 
 
-@click.group()
-def prompts():
+def interactive_prompts_menu():
+    """Interactive menu for managing prompts"""
+    import questionary
+    from questionary import Style
+    
+    custom_style = Style([
+        ('qmark', 'fg:#673ab7 bold'),
+        ('question', 'bold'),
+        ('answer', 'fg:#f44336 bold'),
+        ('pointer', 'fg:#673ab7 bold'),
+        ('highlighted', 'fg:#673ab7 bold'),
+    ])
+    
+    while True:
+        action = questionary.select(
+            "Prompt Management - What would you like to do?",
+            choices=[
+                'List all prompts',
+                'Show prompt details',
+                'Add new prompt',
+                'Modify prompt',
+                'Remove prompt',
+                'Exit'
+            ],
+            style=custom_style
+        ).ask()
+        
+        if action is None or action == 'Exit':
+            break
+        elif action == 'List all prompts':
+            list_prompts_cmd.callback()
+        elif action == 'Show prompt details':
+            interactive_show_prompt()
+        elif action == 'Add new prompt':
+            interactive_add_prompt()
+        elif action == 'Modify prompt':
+            interactive_modify_prompt()
+        elif action == 'Remove prompt':
+            interactive_remove_prompt()
+
+
+def interactive_show_prompt():
+    """Interactive prompt selection for showing details"""
+    import questionary
+    from occ.commons.prompts import list_prompts
+    
+    prompts_dict = list_prompts()
+    if not prompts_dict:
+        logger.log_r("No prompts available")
+        return
+    
+    prompt_key = questionary.select(
+        "Select a prompt to view:",
+        choices=list(prompts_dict.keys())
+    ).ask()
+    
+    if prompt_key:
+        show_prompt_cmd.callback(prompt_key)
+
+
+def interactive_add_prompt():
+    """Interactive prompt addition"""
+    import questionary
+    
+    key = questionary.text("Enter prompt key (e.g., my-prompt):").ask()
+    if not key:
+        return
+    
+    name = questionary.text("Enter prompt name:").ask()
+    if not name:
+        return
+    
+    description = questionary.text("Enter prompt description:").ask()
+    if not description:
+        return
+    
+    system_prompt = questionary.text(
+        "Enter system prompt content:",
+        multiline=True
+    ).ask()
+    if not system_prompt:
+        return
+    
+    add_prompt_cmd.callback(key, name, description, system_prompt)
+
+
+def interactive_modify_prompt():
+    """Interactive prompt modification"""
+    import questionary
+    from occ.commons.prompts import list_prompts, get_prompt
+    
+    user_prompts = {k: v for k, v in list_prompts().items() if not v.get('builtin', False)}
+    
+    if not user_prompts:
+        logger.log_r("No custom prompts to modify. Built-in prompts cannot be modified.")
+        return
+    
+    prompt_key = questionary.select(
+        "Select a prompt to modify:",
+        choices=list(user_prompts.keys())
+    ).ask()
+    
+    if not prompt_key:
+        return
+    
+    current_prompt = get_prompt(prompt_key)
+    
+    # Ask what to modify
+    fields = questionary.checkbox(
+        "What would you like to modify?",
+        choices=['Name', 'Description', 'System Prompt']
+    ).ask()
+    
+    if not fields:
+        return
+    
+    name = None
+    description = None
+    system_prompt = None
+    
+    if 'Name' in fields:
+        name = questionary.text(
+            "Enter new name:",
+            default=current_prompt['name']
+        ).ask()
+    
+    if 'Description' in fields:
+        description = questionary.text(
+            "Enter new description:",
+            default=current_prompt['description']
+        ).ask()
+    
+    if 'System Prompt' in fields:
+        system_prompt = questionary.text(
+            "Enter new system prompt:",
+            default=current_prompt['system_prompt'],
+            multiline=True
+        ).ask()
+    
+    modify_prompt_cmd.callback(prompt_key, name, description, system_prompt)
+
+
+def interactive_remove_prompt():
+    """Interactive prompt removal"""
+    import questionary
+    from occ.commons.prompts import list_prompts
+    
+    user_prompts = {k: v for k, v in list_prompts().items() if not v.get('builtin', False)}
+    
+    if not user_prompts:
+        logger.log_r("No custom prompts to remove. Built-in prompts cannot be removed.")
+        return
+    
+    prompt_key = questionary.select(
+        "Select a prompt to remove:",
+        choices=list(user_prompts.keys())
+    ).ask()
+    
+    if prompt_key:
+        remove_prompt_cmd.callback(prompt_key, False)
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def prompts(ctx):
     """Manage prompt templates"""
-    pass
+    if ctx.invoked_subcommand is None:
+        # No subcommand provided, show interactive menu
+        interactive_prompts_menu()
 
 
 @click.command(name='list')
@@ -285,13 +554,63 @@ def add_prompt_cmd(key, name, description, system_prompt):
 
 
 @click.command(name='modify')
-@click.argument('key')
+@click.argument('key', required=False)
 @click.option('--name', '-n', help='New display name')
 @click.option('--description', '-d', help='New description')
 @click.option('--system-prompt', '-s', help='New system prompt content')
 def modify_prompt_cmd(key, name, description, system_prompt):
     """Modify an existing custom prompt template"""
-    from occ.commons.prompts import modify_prompt
+    from occ.commons.prompts import modify_prompt, list_prompts, get_prompt
+    import questionary
+    
+    # If key not provided, show interactive selection
+    if not key:
+        user_prompts = {k: v for k, v in list_prompts().items() if not v.get('builtin', False)}
+        
+        if not user_prompts:
+            logger.log_r("No custom prompts to modify. Built-in prompts cannot be modified.")
+            return
+        
+        key = questionary.select(
+            "Select a prompt to modify:",
+            choices=list(user_prompts.keys())
+        ).ask()
+        
+        if not key:
+            logger.log_g("Cancelled")
+            return
+        
+        # If no options provided, ask interactively
+        if not any([name, description, system_prompt]):
+            current_prompt = get_prompt(key)
+            
+            fields = questionary.checkbox(
+                "What would you like to modify?",
+                choices=['Name', 'Description', 'System Prompt']
+            ).ask()
+            
+            if not fields:
+                logger.log_g("Cancelled")
+                return
+            
+            if 'Name' in fields:
+                name = questionary.text(
+                    "Enter new name:",
+                    default=current_prompt['name']
+                ).ask()
+            
+            if 'Description' in fields:
+                description = questionary.text(
+                    "Enter new description:",
+                    default=current_prompt['description']
+                ).ask()
+            
+            if 'System Prompt' in fields:
+                system_prompt = questionary.text(
+                    "Enter new system prompt:",
+                    default=current_prompt['system_prompt'],
+                    multiline=True
+                ).ask()
     
     if not any([name, description, system_prompt]):
         logger.log_r("At least one of --name, --description, or --system-prompt must be provided")
@@ -305,12 +624,29 @@ def modify_prompt_cmd(key, name, description, system_prompt):
 
 
 @click.command(name='remove')
-@click.argument('key')
+@click.argument('key', required=False)
 @click.option('--yes', '-y', is_flag=True, help='Skip confirmation')
 def remove_prompt_cmd(key, yes):
     """Remove a custom prompt template"""
-    from occ.commons.prompts import remove_prompt, get_prompt
+    from occ.commons.prompts import remove_prompt, get_prompt, list_prompts
     import questionary
+    
+    # If key not provided, show interactive selection
+    if not key:
+        user_prompts = {k: v for k, v in list_prompts().items() if not v.get('builtin', False)}
+        
+        if not user_prompts:
+            logger.log_r("No custom prompts to remove. Built-in prompts cannot be removed.")
+            return
+        
+        key = questionary.select(
+            "Select a prompt to remove:",
+            choices=list(user_prompts.keys())
+        ).ask()
+        
+        if not key:
+            logger.log_g("Cancelled")
+            return
     
     # Check if prompt exists
     prompt = get_prompt(key)
