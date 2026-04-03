@@ -102,6 +102,40 @@ def configure_common_settings(profile_name, is_existing):
     
     if limit_history:
         config.set_env(profile_name, 'limit_history', limit_history)
+    
+    # Configure default prompt
+    existing_prompt = config.get_profile_default_prompt(profile_name) if is_existing else None
+    
+    set_prompt = questionary.confirm(
+        "Set a default prompt template for this profile?",
+        default=False,
+        style=custom_style
+    ).ask()
+    
+    if set_prompt:
+        from occ.commons.prompts import list_prompts
+        available_prompts = list(list_prompts().keys())
+        if available_prompts:
+            default_prompt = questionary.select(
+                "Select default prompt:",
+                choices=available_prompts + ['[None]'],
+                default=existing_prompt if existing_prompt in available_prompts else '[None]',
+                style=custom_style
+            ).ask()
+            
+            if default_prompt and default_prompt != '[None]':
+                config.set_env(profile_name, 'default_prompt', default_prompt)
+                logger.log_g(f"✓ Default prompt set to '{default_prompt}'")
+            elif default_prompt == '[None]' and existing_prompt:
+                # Remove default prompt
+                config.config.remove_option(profile_name, 'default_prompt')
+                config.write_config()
+                logger.log_g("✓ Default prompt removed")
+        else:
+            logger.log_r("No prompts available. Use 'occ prompts add' to create custom prompts.")
+    elif existing_prompt:
+        # Show existing default prompt
+        logger.log_g(f"Current default prompt: {existing_prompt}")
 
 
 def configure_openai(profile_name, is_existing):

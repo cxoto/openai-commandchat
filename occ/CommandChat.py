@@ -58,7 +58,7 @@ class CommandChat:
     partial_text = []
     role = None
 
-    def __init__(self, profile=None, chat_log_id=None, model=None):
+    def __init__(self, profile=None, chat_log_id=None, model=None, system_message=None):
         now = time.strftime("%Y%m%d", time.localtime())
         self.profile = profile or DEFAULT_PROFILE
         self.api_server_type = get_env(self.profile, "api_server_type")
@@ -91,6 +91,17 @@ class CommandChat:
                         self.messages.append(msg)
                 except json.JSONDecodeError:
                     continue
+        
+        # Add system message if provided
+        if system_message:
+            # Check if there's already a system message at the beginning
+            has_system = len(self.messages) > 0 and self.messages[0].get('role') == 'system'
+            if has_system:
+                # Replace existing system message
+                self.messages[0] = {"role": "system", "content": system_message}
+            else:
+                # Insert system message at the beginning
+                self.messages.insert(0, {"role": "system", "content": system_message})
         
         # Initialize client based on API server type
         if self.api_server_type == "azure-openai":

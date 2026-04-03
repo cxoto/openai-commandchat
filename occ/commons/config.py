@@ -142,6 +142,19 @@ def profile_exists(profile):
     return config.has_section(profile)
 
 
+def get_profile_default_prompt(profile):
+    """Get the default prompt for a profile"""
+    return get_env(profile, 'default_prompt')
+
+
+def set_profile_default_prompt(profile, prompt_key):
+    """Set the default prompt for a profile"""
+    if not profile_exists(profile):
+        return False, f"Profile '{profile}' does not exist"
+    set_env(profile, 'default_prompt', prompt_key)
+    return True, f"Default prompt for profile '{profile}' set to '{prompt_key}'"
+
+
 def log_config():
     level_input = 'DEBUG'
     if level_input == 'DEBUG':

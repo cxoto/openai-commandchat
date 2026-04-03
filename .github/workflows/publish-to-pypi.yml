@@ -11,14 +11,12 @@ on:
 
 jobs:
   publish:
-    # 只在 PR merge 到 master 或直接 push 到 master 时运行
     if: github.event_name == 'push' || (github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     
-    # 配置 OIDC 权限（用于 Trusted Publishers）
     permissions:
-      id-token: write  # 必需：用于 OIDC 身份验证
-      contents: read   # 必需：用于检出代码
+      id-token: write
+      contents: read
     
     steps:
     - name: Checkout code
@@ -28,19 +26,35 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+    
+    - name: Check if version changed
+      id: version_check
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r .github/scripts/requirements.txt
+        python .github/scripts/check_version.py
+      continue-on-error: true
+    
+    - name: Skip publish if version unchanged
+      if: steps.version_check.outcome == 'failure'
+      run: |
+        echo "::warning::Version has not changed. Skipping PyPI publish."
+        echo "To publish a new version, update the version field in pyproject.toml"
+        exit 0
         
-    - name: Install dependencies
+    - name: Install build dependencies
+      if: steps.version_check.outcome == 'success'
       run: |
         python -m pip install --upgrade pip
         pip install build
         
     - name: Build package
+      if: steps.version_check.outcome == 'success'
       run: python -m build
       
     - name: Publish to PyPI using OIDC
+      if: steps.version_check.outcome == 'success'
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        # 使用 Trusted Publishers (OIDC)，无需配置 token
-        # 需要在 PyPI 项目设置中预先配置 GitHub 作为 Trusted Publisher
         print-hash: true
 
