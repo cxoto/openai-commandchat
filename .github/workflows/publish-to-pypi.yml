@@ -4,14 +4,14 @@ on:
   push:
     branches:
       - master
-  pull_request:
-    branches:
-      - master
-    types: [closed]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-to-pypi-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
-    if: github.event_name == 'push' || (github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     
     permissions:
@@ -32,29 +32,40 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r .github/scripts/requirements.txt
-        python .github/scripts/check_version.py
-      continue-on-error: true
-    
-    - name: Skip publish if version unchanged
-      if: steps.version_check.outcome == 'failure'
-      run: |
-        echo "::warning::Version has not changed. Skipping PyPI publish."
-        echo "To publish a new version, update the version field in pyproject.toml"
-        exit 0
-        
+        if python .github/scripts/check_version.py; then
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+        else
+          exit_code=$?
+          if [ "$exit_code" -eq 1 ]; then
+            echo "::notice::Version has not changed. Skipping PyPI publish."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            exit "$exit_code"
+          fi
+        fi
+
     - name: Install build dependencies
-      if: steps.version_check.outcome == 'success'
+      if: steps.version_check.outputs.should_publish == 'true'
       run: |
         python -m pip install --upgrade pip
-        pip install build
-        
+        pip install build twine
+
+    - name: Clean dist directory
+      if: steps.version_check.outputs.should_publish == 'true'
+      run: rm -rf dist/*
+
     - name: Build package
-      if: steps.version_check.outcome == 'success'
+      if: steps.version_check.outputs.should_publish == 'true'
       run: python -m build
-      
+
+    - name: Check distribution metadata
+      if: steps.version_check.outputs.should_publish == 'true'
+      run: python -m twine check dist/*
+
     - name: Publish to PyPI using OIDC
-      if: steps.version_check.outcome == 'success'
+      if: steps.version_check.outputs.should_publish == 'true'
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
+        packages-dir: dist/
         print-hash: true
 

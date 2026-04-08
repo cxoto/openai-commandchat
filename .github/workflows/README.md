@@ -1,123 +1,73 @@
 # GitHub Actions 配置说明
 
-## PyPI 自动发布配置
+## PyPI 自动发布
 
-### 配置方式说明
+仓库里的 `.github/workflows/publish-to-pypi.yml` 使用 **PyPI Trusted Publishing（OIDC）** 发布，无需长期保存 API Token。
 
-本项目使用 **OpenID Connect (OIDC) Trusted Publishers** 方式发布到 PyPI，这是最安全的方式，**无需配置 API Token**！
+## PyPI 首页内容从哪里来？
 
-### ✅ 方式一：OIDC Trusted Publishers（推荐）
+PyPI 项目页的长描述来自 `pyproject.toml` 里的 `project.readme` 配置。
 
-这是更安全的现代化方式，不需要管理长期 token。
+当前配置指向：
 
-#### 配置步骤：
-
-1. **登录到 [PyPI](https://pypi.org/)**
-
-2. **如果项目已存在**：
-   - 进入项目页面：`https://pypi.org/manage/project/commandchat/settings/`
-   - 找到 "Publishing" 部分
-   - 点击 "Add a new publisher"
-
-3. **如果项目不存在**（首次发布）：
-   - 访问：https://pypi.org/manage/account/publishing/
-   - 点击 "Add a new pending publisher"
-
-4. **填写 Trusted Publisher 信息**：
-   ```
-   PyPI Project Name: commandchat
-   Owner: xoto (你的 GitHub 用户名或组织名)
-   Repository name: commandchat (你的仓库名)
-   Workflow name: publish-to-pypi.yml
-   Environment name: (留空)
-   ```
-
-5. **保存配置**
-
-✅ 完成！现在无需任何 token，GitHub Actions 会通过 OIDC 自动验证并发布。
-
-### 🔑 方式二：API Token（备选）
-
-如果你更倾向使用传统的 API Token 方式：
-
-#### 1. 获取 PyPI API Token
-
-1. 登录到 [PyPI](https://pypi.org/)
-2. 进入账户设置 -> API tokens
-3. 创建一个新的 API token
-   - Token 名称：例如 "GitHub Actions - commandchat"
-   - Scope: 选择 "Entire account" 或者只针对 "commandchat" 项目
-4. 复制生成的 token（格式类似：`pypi-...`）
-
-#### 2. 在 GitHub 仓库中配置 Secret
-
-1. 打开 GitHub 仓库页面
-2. 进入 Settings -> Secrets and variables -> Actions
-3. 点击 "New repository secret"
-4. 添加以下 secret：
-   - Name: `PYPI_API_TOKEN`
-   - Value: 粘贴你在 PyPI 获取的 API token
-
-#### 3. 修改 workflow 文件
-
-将 `.github/workflows/publish-to-pypi.yml` 中的发布步骤改为：
-
-```yaml
-- name: Publish to PyPI using Token
-  env:
-    TWINE_USERNAME: __token__
-    TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-  run: |
-    pip install twine
-    twine upload dist/*
+```toml
+readme = { file = "README.md", content-type = "text/markdown" }
 ```
 
-并移除 `permissions` 部分。
+所以：
 
-### 工作流程说明
+- 修改 `README.md`
+- 升级 `pyproject.toml` 中的版本号
+- 触发一次新的 PyPI 发布
 
-`publish-to-pypi.yml` 工作流会在以下情况下触发：
+就会同步更新 PyPI 首页内容。
 
-- 直接 push 到 master 分支
-- Pull Request merge 到 master 分支
+## 工作流触发方式
 
-工作流会执行以下步骤：
+- push 到 `master`
+- 手动触发 `workflow_dispatch`
+
+## 工作流会执行什么
 
 1. 检出代码
-2. 设置 Python 环境（Python 3.11）
-3. 安装构建依赖（build）
-4. 构建包（wheel 和 source distribution）
-5. 通过 OIDC 自动验证身份并上传到 PyPI
+2. 设置 Python 3.11
+3. 对比 `pyproject.toml` 版本和 PyPI 当前版本
+4. 若版本有变化，则安装构建依赖
+5. 构建 sdist 和 wheel
+6. 执行 `twine check dist/*`
+7. 通过 OIDC 发布到 PyPI
 
-### 注意事项
+如果版本未变化，工作流会正常结束，但跳过发布。
 
-1. **版本号管理**: 每次发布前请确保更新 `pyproject.toml` 中的版本号，PyPI 不允许重复上传相同版本
-2. **首次发布**: 如果这是项目的首次发布，请先在 PyPI 手动创建项目或使用 TestPyPI 测试
-3. **测试环境**: 建议先使用 [TestPyPI](https://test.pypi.org/) 进行测试
+## OIDC Trusted Publisher 配置
 
-### 使用 TestPyPI 测试（可选）
+在 PyPI 中添加 Trusted Publisher 时，请填写与你当前 GitHub 仓库完全一致的信息：
 
-如果想先在测试环境验证，可以：
+```text
+PyPI Project Name: commandchat
+Owner: <your-github-user-or-org>
+Repository name: <your-repository-name>
+Workflow name: publish-to-pypi.yml
+Environment name: (leave empty)
+```
 
-1. 在 TestPyPI 创建账户并获取 token
-2. 在 GitHub 添加 `TEST_PYPI_API_TOKEN` secret
-3. 创建一个单独的测试工作流或修改现有工作流
+> `Owner` 和 `Repository name` 必须以你的实际仓库为准，不要直接照抄示例值。
 
-### 手动发布（备选方案）
+## 首次发布 / 常见注意事项
 
-如果需要手动发布，可以执行：
+1. 每次发布前必须升级 `pyproject.toml` 中的 `project.version`
+2. PyPI 不允许重复上传同一版本
+3. 首次接入时建议先用 TestPyPI 验证流程
+
+## 手动构建检查
 
 ```bash
-# 安装构建工具
-pip install build twine
-
-# 构建包
-python -m build
-
-# 检查构建
-twine check dist/*
-
-# 上传到 PyPI
-twine upload dist/*
+python3 -m pip install build twine
+python3 -m build
+python3 -m twine check dist/*
 ```
+
+## Token 方案（备选）
+
+如果你不想使用 OIDC，可以参考 `publish-to-pypi-token.yml.example` 改成 Token 发布模式。
 

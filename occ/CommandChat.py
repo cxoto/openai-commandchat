@@ -9,7 +9,6 @@ from dataclasses import dataclass
 
 from openai import AzureOpenAI
 from openai import OpenAI
-from openai.types.chat.chat_completion_chunk import Choice
 from prompt_toolkit import print_formatted_text, HTML, Application
 from prompt_toolkit.clipboard.pyperclip import PyperclipClipboard
 from prompt_toolkit.layout import Layout, HSplit

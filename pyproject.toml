@@ -4,33 +4,39 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "commandchat"
-version = "0.0.14"
-description = "use command to chat with openai models"
-readme = "README.md"
+version = "0.0.15"
+description = "Command-line chat client for OpenAI and Azure OpenAI models."
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.8"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
-    { name = "xoto", email = "xxx.tao.c@gmail.com" }
+    { name = "tao", email = "xxx.tao.c@gmail.com" }
 ]
 dependencies = [
     "click",
-    "Image",
     "openai",
+    "Pillow",
     "prompt_toolkit",
+    "Pygments",
     "pyperclip",
-    "rich",
-    "requests",
     "questionary",
+    "requests",
+    "rich",
 ]
 
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
     "Operating System :: OS Independent",
 ]
 
 [project.urls]
 Homepage = "https://github.com/xoto/commandchat"
+Issues = "https://github.com/xoto/commandchat/issues"
 
 [project.scripts]
 occ = "occ.command.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["occ*"]
+
