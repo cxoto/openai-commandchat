@@ -43,14 +43,33 @@ occ prompt remove my-prompt
 occ configure
 
 # View all profiles
-occ configure list-profiles
+occ configure list
 
 # Configure a specific profile
 occ configure profile -p myprofile
 
 # Delete a profile
-occ configure delete-profile myprofile
+occ configure delete myprofile
 ```
+
+### Interactive Chat Shortcuts
+
+```bash
+# Start interactive chat
+occ chat
+
+# Then use these in the chat input box:
+/      # open the shortcut command menu
+/pmp   # list prompts and switch the active prompt
+/p     # short alias for prompt switch
+/prompt # full alias for prompt switch
+/m     # list models and switch the active model
+/model # full alias for model switch
+/help  # show help
+/q     # quit chat
+```
+
+When switching prompts with `/pmp` or models with `/m`, you can either keep the current context or start a new chat session with a fresh session id.
 
 ### Setting Profile Default Prompt
 
@@ -87,9 +106,9 @@ occ chat -p myprofile -pt improve "your message"
 | Command | Description |
 |---------|-------------|
 | `occ configure` | Interactive configuration menu |
-| `occ configure list-profiles` | List all profiles |
+| `occ configure list` | List all profiles |
 | `occ configure profile [-p name]` | Configure a profile |
-| `occ configure delete-profile [name]` | Delete a profile |
+| `occ configure delete [name]` | Delete a profile |
 
 ### Chat Commands
 
@@ -99,6 +118,9 @@ occ chat -p myprofile -pt improve "your message"
 | `occ chat -pt <key> "message"` | Chat with specific prompt |
 | `occ chat -p <profile> "message"` | Chat with specific profile |
 | `occ chat -p <profile> -pt <key> "message"` | Chat with profile and prompt |
+| `occ chat` + `/` | Open the interactive shortcut menu |
+| `occ chat` + `/pmp` / `/p` / `/prompt` | Switch prompt inside interactive chat |
+| `occ chat` + `/m` / `/model` | Switch model inside interactive chat |
 
 ## 🎯 Common Workflows
 
